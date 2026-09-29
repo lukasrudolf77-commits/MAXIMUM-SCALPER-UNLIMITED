@@ -349,17 +349,6 @@ bool OpenTrade(int dir,bool addon)
  return ok;
 }
 
-bool DirectionOK(int dir)
-{
- double e21=BufValue(hE21,0),e34=BufValue(hE34,0),e55=BufValue(hE55,0);
- double close1=iClose(sym,EntryTF,1),close2=iClose(sym,EntryTF,2);
- double atr=BufValue(hATR,0);
- if(atr<=0||e21==EMPTY_VALUE||e34==EMPTY_VALUE||e55==EMPTY_VALUE)return false;
- double body=MathAbs(close1-close2);
- if(dir>0) return close1>e21 && e21>e34 && close1>close2 && body>=atr*0.08;
- return close1<e21 && e21<e34 && close1<close2 && body>=atr*0.08;
-}
-
 void ManagePositions()
 {
  double atr=BufValue(hATR,0);if(atr==EMPTY_VALUE||atr<=0)return;
