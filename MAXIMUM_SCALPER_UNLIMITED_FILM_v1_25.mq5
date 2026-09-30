@@ -1,10 +1,10 @@
 //+------------------------------------------------------------------+
-//| MAXIMUM-SCALPER-UNLIMITED FILM_V1.25                                 |
+//| MAXIMUM-SCALPER-UNLIMITED FILM_V1.26                                 |
 //| XAUUSDs - M1 scalper / M5 trend                                 |
 //| Continuous M1 signal pyramid - one new entry per signal candle       |
 //| No #property strict                                              |
 //+------------------------------------------------------------------+
-#property version "1.25"
+#property version "1.26"
 #property description "VEO XAUUSD continuous M1 trend pyramid with trend lock and re-entry every candle"
 
 #include <Trade/Trade.mqh>
@@ -36,8 +36,8 @@ input double SL_ATR_Mult=0.65;
 input double TP_ATR_Mult=1.70;
 input bool UseIndividualTP=false;
 input bool UseBasketProfitLock=true;
-input double BasketLockStartATR=2.00;
-input double BasketLockDistanceATR=1.00;
+input double BasketLockStartATR=3.00;
+input double BasketLockDistanceATR=1.50;
 
 input int MaxPositions=30;
 input bool UseEverySignalCandle=true;
@@ -64,10 +64,10 @@ input bool UseTradingHours=false;
 input int StartHour=7;
 input int EndHour=22;
 
-input bool UseTrailing=true;
+input bool UseTrailing=false;
 input double TrailStartATR=1.80;
 input double TrailDistanceATR=1.00;
-input bool UseBreakEven=true;
+input bool UseBreakEven=false;
 input double BreakEvenATR=1.60;
 input bool ShowDashboard=true;
 input bool UseFastLossCut=true;
@@ -76,7 +76,7 @@ input int FastLossCutMinutes=4;
 input bool UseTrendLock=true;
 input int TrendReversalConfirmBars=2;
 
-input bool UseProfitLock=true;
+input bool UseProfitLock=false;
 input bool UseAntiChase=false;
 input double MaxEntryDistanceATR=0.55;
 input bool AllowLongCandleEntry=true;
