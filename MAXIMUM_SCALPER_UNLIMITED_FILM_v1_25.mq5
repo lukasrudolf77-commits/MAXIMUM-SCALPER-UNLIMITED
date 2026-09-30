@@ -4,7 +4,7 @@
 //| Continuous M1 signal pyramid - one new entry per signal candle       |
 //| No #property strict                                              |
 //+------------------------------------------------------------------+
-#property version "1.26"
+#property version "1.27"
 #property description "VEO XAUUSD continuous M1 trend pyramid with trend lock and re-entry every candle"
 
 #include <Trade/Trade.mqh>
@@ -32,12 +32,12 @@ input int StochD=3;
 input int StochSlowing=3;
 
 input int ATR_Period=14;
-input double SL_ATR_Mult=0.65;
+input double SL_ATR_Mult=1.05;
 input double TP_ATR_Mult=1.70;
 input bool UseIndividualTP=false;
 input bool UseBasketProfitLock=true;
-input double BasketLockStartATR=3.00;
-input double BasketLockDistanceATR=1.50;
+input double BasketLockStartATR=2.20;
+input double BasketLockDistanceATR=0.90;
 
 input int MaxPositions=30;
 input bool UseEverySignalCandle=true;
@@ -70,11 +70,14 @@ input double TrailDistanceATR=1.00;
 input bool UseBreakEven=false;
 input double BreakEvenATR=1.60;
 input bool ShowDashboard=true;
-input bool UseFastLossCut=true;
+input bool UseFastLossCut=false;
 input double FastLossCutATR=0.50;
 input int FastLossCutMinutes=4;
 input bool UseTrendLock=true;
 input int TrendReversalConfirmBars=2;
+input bool UseTrendStackFilter=true;
+input bool UseTrendSlopeFilter=true;
+input int TrendSlopeBars=2;
 
 input bool UseProfitLock=false;
 input bool UseAntiChase=false;
@@ -88,7 +91,7 @@ input double ProfitLockATR=2.00;
 input double ProfitLockDistanceATR=0.85;
 
 string sym;
-int hEma21=-1,hEma34=-1,hEma55=-1,hEma200=-1,hRSI=-1,hATR=-1,hATR_M1=-1,hStoch=-1;
+int hEma21=-1,hEma34=-1,hEma55=-1,hEma200=-1,hRSI=-1,hATR=-1,hATR_M1=-1,hStoch=-1,hTrend21=-1,hTrend34=-1;
 datetime lastEntryTime=0;
 int todayTrades=0,todayKey=-1;
 int lockedTrend=0;
@@ -301,25 +304,45 @@ bool SuddenMoveBlocked()
 
 int RawTrendSignal()
 {
- int hf=iMA(sym,TrendTF,EMA_Fast,0,MODE_EMA,PRICE_CLOSE);
- if(hf<0)return 0;
-
- double f1=BufValue(hf,1),f0=BufValue(hf,0);
+ double f1=BufValue(hTrend21,1),f0=BufValue(hTrend21,0);
+ double m1=BufValue(hTrend34,1),m0=BufValue(hTrend34,0);
  double s1=BufValue(hEma200,1),s0=BufValue(hEma200,0);
- IndicatorRelease(hf);
-
+ int slopeBars=MathMax(1,TrendSlopeBars);
+ double sPast=BufValue(hEma200,1+slopeBars);
  double c1=iClose(sym,TrendTF,1),c0=iClose(sym,TrendTF,0);
- if(f1==EMPTY_VALUE||s1==EMPTY_VALUE||c1<=0)return 0;
+ if(f1==EMPTY_VALUE||m1==EMPTY_VALUE||s1==EMPTY_VALUE||c1<=0)return 0;
 
- bool up=(c1>s1 && f1>s1);
- bool dn=(c1<s1 && f1<s1);
+ bool up=(c1>s1);
+ bool dn=(c1<s1);
 
- // Early trend uses the forming M5 candle so the first M1 candles of a
- // fresh impulse are not missed.
+ // Strong M5 structure: EMA21 > EMA34 > EMA55 for BUY,
+ // and the reverse for SELL. Once accepted, the trend lock still
+ // allows a new entry on every M1 candle.
+ if(UseTrendStackFilter)
+ {
+   up=up && (f1>m1 && m1>s1);
+   dn=dn && (f1<m1 && m1<s1);
+ }
+
+ if(UseTrendSlopeFilter && sPast!=EMPTY_VALUE)
+ {
+   up=up && (s1>sPast);
+   dn=dn && (s1<sPast);
+ }
+
+ // Early trend uses the forming M5 candle, but keeps the same structure
+ // so a weak sideways move does not start a full pyramid.
  if(UseEarlyTrend)
  {
-   if(c0>s0 && f0>s0)up=true;
-   if(c0<s0 && f0<s0)dn=true;
+   bool earlyUp=(c0>s0 && f0>m0 && m0>s0);
+   bool earlyDn=(c0<s0 && f0<m0 && m0<s0);
+   if(UseTrendSlopeFilter && sPast!=EMPTY_VALUE)
+   {
+      earlyUp=earlyUp && (s0>sPast);
+      earlyDn=earlyDn && (s0<sPast);
+   }
+   if(earlyUp)up=true;
+   if(earlyDn)dn=true;
  }
 
  if(UseM1TrendAlignment)
@@ -560,11 +583,18 @@ int OnInit()
  hRSI=iRSI(sym,EntryTF,RSI_Period,PRICE_CLOSE);
  hATR=iATR(sym,EntryTF,ATR_Period); hATR_M1=iATR(sym,EntryTF,ATR_Period);
  hStoch=iStochastic(sym,EntryTF,StochK,StochD,StochSlowing,MODE_SMA,STO_LOWHIGH);
- if(hEma21<0||hEma34<0||hEma55<0||hEma200<0||hRSI<0||hATR<0||hATR_M1<0||hStoch<0)return INIT_FAILED;
+ hTrend21=iMA(sym,TrendTF,EMA_Fast,0,MODE_EMA,PRICE_CLOSE);
+ hTrend34=iMA(sym,TrendTF,EMA_Mid,0,MODE_EMA,PRICE_CLOSE);
+ if(hEma21<0||hEma34<0||hEma55<0||hEma200<0||hRSI<0||hATR<0||hATR_M1<0||hStoch<0||hTrend21<0||hTrend34<0)return INIT_FAILED;
  trade.SetExpertMagicNumber(MagicNumber);ResetDailyCounter();return INIT_SUCCEEDED;
 }
 
-void OnDeinit(const int reason){Comment("");}
+void OnDeinit(const int reason)
+{
+ Comment("");
+ if(hTrend21>=0)IndicatorRelease(hTrend21);
+ if(hTrend34>=0)IndicatorRelease(hTrend34);
+}
 
 bool IsNewSignalBar()
 {
