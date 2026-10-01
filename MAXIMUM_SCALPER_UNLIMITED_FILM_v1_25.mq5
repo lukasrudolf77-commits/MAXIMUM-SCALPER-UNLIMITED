@@ -4,7 +4,7 @@
 //| Continuous M1 signal pyramid - one new entry per signal candle       |
 //| No #property strict                                              |
 //+------------------------------------------------------------------+
-#property version "1.27"
+#property version "1.28"
 #property description "VEO XAUUSD continuous M1 trend pyramid with trend lock and re-entry every candle"
 
 #include <Trade/Trade.mqh>
@@ -38,6 +38,10 @@ input bool UseIndividualTP=false;
 input bool UseBasketProfitLock=true;
 input double BasketLockStartATR=2.20;
 input double BasketLockDistanceATR=0.90;
+input bool UseBasketMoneyProtection=true;
+input double BasketMaxLossMoney=15.0;
+input double BasketProfitTargetMoney=12.0;
+input double BasketGivebackMoney=4.0;
 
 input int MaxPositions=30;
 input bool UseEverySignalCandle=true;
@@ -75,8 +79,8 @@ input double FastLossCutATR=0.50;
 input int FastLossCutMinutes=4;
 input bool UseTrendLock=true;
 input int TrendReversalConfirmBars=2;
-input bool UseTrendStackFilter=true;
-input bool UseTrendSlopeFilter=true;
+input bool UseTrendStackFilter=false;
+input bool UseTrendSlopeFilter=false;
 input int TrendSlopeBars=2;
 
 input bool UseProfitLock=false;
@@ -98,6 +102,8 @@ int lockedTrend=0;
 int oppositeTrendBars=0;
 double basketPeak=0.0;
 int basketPeakDir=0;
+double basketProfitPeak=0.0;
+int basketProfitPeakDir=0;
 
 double PointValue(){return SymbolInfoDouble(sym,SYMBOL_POINT);}
 int DigitsSym(){return (int)SymbolInfoInteger(sym,SYMBOL_DIGITS);}
@@ -473,13 +479,67 @@ double BasketAveragePrice(int dir)
  return vol>0?weighted/vol:0.0;
 }
 
+double BasketFloatingProfit()
+{
+ double p=0.0;
+ for(int i=PositionsTotal()-1;i>=0;i--)
+ {
+  ulong t=PositionGetTicket(i);
+  if(t==0||!PositionSelectByTicket(t))continue;
+  if(PositionGetString(POSITION_SYMBOL)!=sym||(long)PositionGetInteger(POSITION_MAGIC)!=MagicNumber)continue;
+  p+=PositionGetDouble(POSITION_PROFIT)+PositionGetDouble(POSITION_SWAP);
+ }
+ return p;
+}
+
 void ManageBasketProfit()
 {
- if(!UseBasketProfitLock)return;
  int dir=BasketDirection();
- if(dir==0){basketPeak=0.0;basketPeakDir=0;return;}
+ if(dir==0)
+ {
+  basketPeak=0.0; basketPeakDir=0;
+  basketProfitPeak=0.0; basketProfitPeakDir=0;
+  return;
+ }
 
- double atr=BufValue(hATR,0);if(atr==EMPTY_VALUE||atr<=0)return;
+ double floating=BasketFloatingProfit();
+
+ // Hard basket protection: stop the whole pyramid before a large collection
+ // of individual SLs can drain the account.
+ if(UseBasketMoneyProtection && BasketMaxLossMoney>0 && floating<=-BasketMaxLossMoney)
+ {
+  CloseBasket();
+  return;
+ }
+
+ // Money-based profit target/giveback is independent of ATR and therefore
+ // remains consistent even when ATR changes during a long trend.
+ if(UseBasketMoneyProtection && BasketProfitTargetMoney>0)
+ {
+  if(basketProfitPeakDir!=dir)
+  {
+   basketProfitPeakDir=dir;
+   basketProfitPeak=floating;
+  }
+  if(floating>basketProfitPeak) basketProfitPeak=floating;
+
+  if(floating>=BasketProfitTargetMoney &&
+     basketProfitPeak-floating>=BasketGivebackMoney)
+  {
+   CloseBasket();
+   basketProfitPeak=0.0;
+   basketProfitPeakDir=0;
+   basketPeak=0.0;
+   basketPeakDir=0;
+   return;
+  }
+ }
+
+ // ATR basket lock remains as a secondary exit for strong price moves.
+ if(!UseBasketProfitLock)return;
+
+ double atr=BufValue(hATR,0);
+ if(atr==EMPTY_VALUE||atr<=0)return;
  double avg=BasketAveragePrice(dir);if(avg<=0)return;
  double cur=dir>0?SymbolInfoDouble(sym,SYMBOL_BID):SymbolInfoDouble(sym,SYMBOL_ASK);
  double move=dir>0?cur-avg:avg-cur;
@@ -501,6 +561,8 @@ void ManageBasketProfit()
    CloseBasket();
    basketPeak=0.0;
    basketPeakDir=0;
+   basketProfitPeak=0.0;
+   basketProfitPeakDir=0;
   }
  }
 }
@@ -611,7 +673,11 @@ void CloseBasket()
  {
   ulong t=PositionGetTicket(i);if(t==0||!PositionSelectByTicket(t))continue;
   if(PositionGetString(POSITION_SYMBOL)!=sym||(long)PositionGetInteger(POSITION_MAGIC)!=MagicNumber)continue;
-  trade.PositionClose(t);
+
+  bool ok=trade.PositionClose(t);
+  uint rc=trade.ResultRetcode();
+  if(!ok || (rc!=TRADE_RETCODE_DONE && rc!=TRADE_RETCODE_DONE_PARTIAL && rc!=TRADE_RETCODE_PLACED))
+     Print("BASKET CLOSE FAILED ticket=",t," retcode=",rc," ",trade.ResultRetcodeDescription());
  }
 }
 
