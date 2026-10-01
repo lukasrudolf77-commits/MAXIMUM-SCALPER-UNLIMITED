@@ -626,7 +626,7 @@ void Dashboard()
  int closed=ClosedCountSince(0),wins=WinsSince(0);double wr=closed>0?100.0*wins/closed:0;
  long spread=(long)SymbolInfoInteger(sym,SYMBOL_SPREAD);
  string status=DailyLossBlocked()?"DAILY LOSS BLOCK":(CountPositions()>0?"IN TRADE":"WAITING");
- Comment("MAXIMUM-SCALPER-UNLIMITED FILM_V1.00\n",sym," | M1 / M5\n",
+ Comment("MAXIMUM-SCALPER-UNLIMITED FILM_V1.28\n",sym," | M1 / M5\n",
  "Balance ",DoubleToString(bal,2)," | Equity ",DoubleToString(eq,2),"\n",
  "Open P/L ",DoubleToString(eq-bal,2)," | Today ",DoubleToString(ClosedPLSince(StartOfDay()),2),"\n",
  "Closed ",closed," | Win ",DoubleToString(wr,1),"% | PF ",DoubleToString(pf,2),"\n",
