@@ -690,6 +690,7 @@ void Dashboard()
  "Closed ",closed," | Win ",DoubleToString(wr,1),"% | PF ",DoubleToString(pf,2),"\n",
  "BUY ",CountPositions(POSITION_TYPE_BUY)," | SELL ",CountPositions(POSITION_TYPE_SELL),
  " | Max ",MaxPositions,"\n","Trades today ",todayTrades,"/",MaxTradesPerDay,
+ " | Losses ",consecutiveLosses,"/",MaxConsecutiveLosses,
  " | Spread ",spread," pts\n","Status ",status,"\\nRisk ",DoubleToString(RiskPercent,1),"% | Min-lot guard ",(RejectIfMinLotExceedsRisk?"ON":"OFF"));
 }
 
