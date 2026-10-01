@@ -1,7 +1,7 @@
 //+------------------------------------------------------------------+
 //| MAXIMUM-SCALPER-UNLIMITED FILM_V1.29                                 |
 //| XAUUSDs - M1 scalper / M5 trend                                 |
-//| Continuous M1 signal pyramid - one new entry per signal candle | V1.28       |
+//| Continuous M1 signal pyramid - one new entry per signal candle | V1.29       |
 //| No #property strict                                              |
 //+------------------------------------------------------------------+
 #property version "1.29"
@@ -562,6 +562,11 @@ void ManageBasketProfit()
  if(UseBasketMoneyProtection && BasketMaxLossMoney>0 && floating<=-BasketMaxLossMoney)
  {
   CloseBasket();
+  if(UseLossStreakLock)
+  {
+     lossStreakLockDir=dir;
+     consecutiveLosses=MathMax(consecutiveLosses,MathMax(1,MaxConsecutiveLosses));
+  }
   return;
  }
 
